@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 test-images
+gh.zip
+bin/
 
 # Editor directories and files
 .vscode/*
