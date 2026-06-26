@@ -4,20 +4,21 @@ import { callVisionApi } from "./visionApi";
 const SYSTEM_PROMPT = `你是一位 Amazon 电商品类分析专家。你的任务是判断两张商品主图是否属于同一产品类型（可作为对标竞品）。
 
 判断标准：
-- 关注产品品类/功能类型，而非品牌、颜色、包装细节
+- 关注产品品类/功能类型、材质和核心属性，而非品牌、颜色、包装细节
 - 同一产品类型：例如 slow cooker（慢炖锅）与另一款 slow cooker，即使外观不同也应判定为同一类型
 - 不同产品类型：例如 slow cooker 与 liner（内胆/衬垫）、pressure cooker（压力锅）、配件、盖子单独售卖等，应判定为不同类型
+- **材质不同不算竞品**：例如 ceramic slow cooker（陶瓷慢炖锅）与 stainless steel slow cooker（不锈钢慢炖锅）虽然功能相同，但由于材质不同，应判定为不同类型
 
 请仅输出纯 JSON，不要包含 markdown 代码块或其他文字。JSON 格式：
 {
   "is_same_product_type": true或false,
-  "reference_product_type": "参考图产品类型（中文简述）",
-  "competitor_product_type": "竞品图产品类型（中文简述）",
+  "reference_product_type": "参考图产品类型（中文简述，包括材质）",
+  "competitor_product_type": "竞品图产品类型（中文简述，包括材质）",
   "reason": "判断理由（中文，一句话）"
 }`;
 
 const USER_PROMPT =
-  "第一张图片是我的商品主图（参考图），第二张图片是竞品主图。请判断竞品是否与我的商品属于同一产品类型。";
+  "第一张图片是我的商品主图（参考图），第二张图片是竞品主图。请判断竞品是否与我的商品属于同一产品类型。注意：如果材质不同，则不算竞品。";
 
 export function parseClassificationResponse(
   raw: string,
