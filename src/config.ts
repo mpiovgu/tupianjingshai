@@ -1,5 +1,5 @@
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://49.232.90.152:9896/v1";
+  import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 export const MODEL_NAME =
   import.meta.env.VITE_MODEL_NAME ?? "Qwen3-VL-4B";
