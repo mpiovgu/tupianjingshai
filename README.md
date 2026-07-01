@@ -68,3 +68,4 @@ npm run build
 
 - **匹配**：其他品牌的 slow cooker
 - **排除**：liner（内胆）、pressure cooker（压力锅）、单独售卖的盖子或配件
+  
