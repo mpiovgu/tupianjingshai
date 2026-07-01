@@ -9,6 +9,25 @@ type ResultsPanelProps = {
 };
 
 type TabKey = "matched" | "excluded" | "error";
+type ScoreSortMode = "default" | "scoreDesc" | "scoreAsc";
+
+function sortResultsByScore(
+  results: ClassifyResult[],
+  mode: ScoreSortMode,
+): ClassifyResult[] {
+  if (mode === "default") return results;
+
+  return [...results].sort((a, b) => {
+    const scoreA = typeof a.matchScore === "number" ? a.matchScore : null;
+    const scoreB = typeof b.matchScore === "number" ? b.matchScore : null;
+
+    if (scoreA === null && scoreB === null) return 0;
+    if (scoreA === null) return 1;
+    if (scoreB === null) return -1;
+
+    return mode === "scoreDesc" ? scoreB - scoreA : scoreA - scoreB;
+  });
+}
 
 export function ResultsPanel({
   results,
@@ -17,6 +36,8 @@ export function ResultsPanel({
   retryingId,
 }: ResultsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("matched");
+  const [scoreSortMode, setScoreSortMode] =
+    useState<ScoreSortMode>("scoreDesc");
 
   const matched = results.filter((r) => r.status === "matched");
   const excluded = results.filter((r) => r.status === "excluded");
@@ -49,6 +70,7 @@ export function ResultsPanel({
       : activeTab === "excluded"
         ? excluded
         : errors;
+  const sortedActiveList = sortResultsByScore(activeList, scoreSortMode);
 
   const competitorMap = new Map(competitors.map((c) => [c.id, c]));
 
@@ -79,14 +101,36 @@ export function ResultsPanel({
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
+        <p className="text-xs text-slate-500">
+          {scoreSortMode === "default"
+            ? "按分析完成顺序展示"
+            : "按匹配度分数排序展示"}
+        </p>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+          排序
+          <select
+            value={scoreSortMode}
+            onChange={(event) =>
+              setScoreSortMode(event.target.value as ScoreSortMode)
+            }
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="scoreDesc">匹配度从高到低</option>
+            <option value="scoreAsc">匹配度从低到高</option>
+            <option value="default">默认顺序</option>
+          </select>
+        </label>
+      </div>
+
       <div className="p-5">
-        {activeList.length === 0 ? (
+        {sortedActiveList.length === 0 ? (
           <p className="text-center text-sm text-slate-500 py-8">
             暂无{tabs.find((t) => t.key === activeTab)?.label}项
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {activeList.map((result) => {
+            {sortedActiveList.map((result) => {
               const comp = competitorMap.get(result.id);
               return (
                 <ResultCard
@@ -135,6 +179,15 @@ function ResultCard({
     pending: "待分析",
   }[result.status];
 
+  const scoreTone =
+    typeof result.matchScore !== "number"
+      ? ""
+      : result.matchScore >= 80
+        ? "bg-green-50 text-green-700"
+        : result.matchScore >= 60
+          ? "bg-amber-50 text-amber-700"
+          : "bg-slate-100 text-slate-600";
+
   return (
     <div className="rounded-lg border border-slate-200 overflow-hidden">
       {previewUrl ? (
@@ -150,11 +203,20 @@ function ResultCard({
       )}
       <div className="p-3">
         <div className="flex items-center justify-between gap-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge}`}
-          >
-            {statusLabel}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge}`}
+            >
+              {statusLabel}
+            </span>
+            {typeof result.matchScore === "number" && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${scoreTone}`}
+              >
+                匹配度 {result.matchScore}%
+              </span>
+            )}
+          </div>
           {result.status === "error" && (
             <button
               type="button"

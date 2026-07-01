@@ -24,6 +24,7 @@ export type ClassifyResult = {
   id: string;
   status: ClassifyStatus;
   isSameProductType?: boolean;
+  matchScore?: number;
   referenceProductType?: string;
   competitorProductType?: string;
   reason?: string;
@@ -32,6 +33,7 @@ export type ClassifyResult = {
 
 export type ParsedClassification = {
   is_same_product_type: boolean;
+  match_score: number;
   reference_product_type: string;
   competitor_product_type: string;
   reason: string;
