@@ -1,14 +1,16 @@
 export type CompetitorImage = {
   id: string;
-  file: File;
-  previewUrl: string;
+  file?: File;
+  previewUrl?: string;
   dataUrl?: string;
+  title: string;
 };
 
 export type ReferenceImage = {
-  file: File;
-  previewUrl: string;
+  file?: File;
+  previewUrl?: string;
   dataUrl?: string;
+  title: string;
 };
 
 export type ClassifyStatus =

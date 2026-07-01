@@ -32,7 +32,7 @@ export function ResultsPanel({
   if (!hasResults) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-        上传主图和竞品图后点击「开始筛选」，结果将显示在这里
+        输入标题或上传主图后点击「开始筛选」，结果将显示在这里
       </div>
     );
   }
@@ -93,6 +93,7 @@ export function ResultsPanel({
                   key={result.id}
                   result={result}
                   previewUrl={comp?.previewUrl}
+                  title={comp?.title}
                   onRetry={() => onRetry(result.id)}
                   isRetrying={retryingId === result.id}
                 />
@@ -108,11 +109,13 @@ export function ResultsPanel({
 function ResultCard({
   result,
   previewUrl,
+  title,
   onRetry,
   isRetrying,
 }: {
   result: ClassifyResult;
   previewUrl?: string;
+  title?: string;
   onRetry: () => void;
   isRetrying: boolean;
 }) {
@@ -134,12 +137,16 @@ function ResultCard({
 
   return (
     <div className="rounded-lg border border-slate-200 overflow-hidden">
-      {previewUrl && (
+      {previewUrl ? (
         <img
           src={previewUrl}
           alt="竞品"
           className="h-32 w-full object-cover bg-slate-50"
         />
+      ) : (
+        <div className="flex h-32 w-full items-center justify-center bg-slate-50 text-sm text-slate-400">
+          未提供主图
+        </div>
       )}
       <div className="p-3">
         <div className="flex items-center justify-between gap-2">
@@ -159,6 +166,12 @@ function ResultCard({
             </button>
           )}
         </div>
+
+        {title?.trim() && (
+          <p className="mt-2 break-words text-xs text-slate-500">
+            标题：{title.trim()}
+          </p>
+        )}
 
         {result.competitorProductType && (
           <p className="mt-2 text-sm font-medium text-slate-800">
