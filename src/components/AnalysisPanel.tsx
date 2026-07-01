@@ -25,7 +25,7 @@ export function AnalysisPanel({
         <div>
           <h2 className="text-base font-semibold text-slate-800">智能筛选</h2>
           <p className="mt-1 text-xs text-slate-500">
-            使用 {MODEL_NAME} 逐张对比竞品主图
+            使用 {MODEL_NAME} 逐个对比外观结构、功能和标题信息
           </p>
         </div>
 

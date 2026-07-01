@@ -17,8 +17,22 @@ import type {
   ReferenceImage,
 } from "./types";
 
+function hasProductInput(product: {
+  dataUrl?: string;
+  file?: File;
+  previewUrl?: string;
+  title?: string;
+}): boolean {
+  return Boolean(
+    product.dataUrl ||
+      product.file ||
+      product.previewUrl ||
+      product.title?.trim(),
+  );
+}
+
 export default function App() {
-  const [reference, setReference] = useState<ReferenceImage | null>(null);
+  const [reference, setReference] = useState<ReferenceImage>({ title: "" });
   const [competitors, setCompetitors] = useState<CompetitorImage[]>([]);
   const [results, setResults] = useState<ClassifyResult[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -34,9 +48,14 @@ export default function App() {
 
   const handleReferenceSelected = useCallback(async (file: File) => {
     try {
-      const previewUrl = URL.createObjectURL(file);
       const dataUrl = await prepareImageDataUrl(file);
-      setReference({ file, previewUrl, dataUrl });
+      const previewUrl = URL.createObjectURL(file);
+      setReference((prev) => {
+        if (prev.previewUrl) {
+          URL.revokeObjectURL(prev.previewUrl);
+        }
+        return { ...prev, file, previewUrl, dataUrl };
+      });
       setResults([]);
     } catch (err) {
       showError(
@@ -48,22 +67,29 @@ export default function App() {
   }, []);
 
   const handleReferenceRemove = useCallback(() => {
-    if (reference?.previewUrl) {
-      URL.revokeObjectURL(reference.previewUrl);
-    }
-    setReference(null);
+    setReference((prev) => {
+      if (prev.previewUrl) {
+        URL.revokeObjectURL(prev.previewUrl);
+      }
+      return { title: prev.title };
+    });
     setResults([]);
-  }, [reference]);
+  }, []);
+
+  const handleReferenceTitleChange = useCallback((title: string) => {
+    setReference((prev) => ({ ...prev, title }));
+    setResults([]);
+  }, []);
 
   const handleCompetitorsSelected = useCallback(async (files: File[]) => {
     for (const file of files) {
       try {
-        const previewUrl = URL.createObjectURL(file);
         const dataUrl = await prepareImageDataUrl(file);
+        const previewUrl = URL.createObjectURL(file);
         const id = createImageId();
         setCompetitors((prev) => [
           ...prev,
-          { id, file, previewUrl, dataUrl },
+          { id, file, previewUrl, dataUrl, title: "" },
         ]);
         setResults((prev) => [...prev, { id, status: "pending" }]);
       } catch (err) {
@@ -76,11 +102,35 @@ export default function App() {
     }
   }, []);
 
+  const handleCompetitorAdd = useCallback(() => {
+    const id = createImageId();
+    setCompetitors((prev) => [...prev, { id, title: "" }]);
+    setResults((prev) => [...prev, { id, status: "pending" }]);
+  }, []);
+
+  const handleCompetitorTitleChange = useCallback(
+    (id: string, title: string) => {
+      setCompetitors((prev) =>
+        prev.map((comp) =>
+          comp.id === id ? { ...comp, title } : comp,
+        ),
+      );
+      setResults((prev) =>
+        prev.map((result) =>
+          result.id === id ? { id, status: "pending" } : result,
+        ),
+      );
+    },
+    [],
+  );
+
   const handleCompetitorRemove = useCallback(
     (index: number) => {
       const comp = competitors[index];
       if (!comp) return;
-      URL.revokeObjectURL(comp.previewUrl);
+      if (comp.previewUrl) {
+        URL.revokeObjectURL(comp.previewUrl);
+      }
       setCompetitors((prev) => prev.filter((_, i) => i !== index));
       setResults((prev) => prev.filter((r) => r.id !== comp.id));
     },
@@ -88,17 +138,17 @@ export default function App() {
   );
 
   const ensureDataUrls = async () => {
-    let refDataUrl = reference?.dataUrl;
-    if (reference && !refDataUrl) {
+    let refDataUrl = reference.dataUrl;
+    if (reference.file && !refDataUrl) {
       refDataUrl = await prepareImageDataUrl(reference.file);
       setReference((prev) =>
-        prev ? { ...prev, dataUrl: refDataUrl } : prev,
+        ({ ...prev, dataUrl: refDataUrl }),
       );
     }
 
     const compsWithData = await Promise.all(
       competitors.map(async (c) => {
-        if (c.dataUrl) return c;
+        if (!c.file || c.dataUrl) return c;
         const dataUrl = await prepareImageDataUrl(c.file);
         return { ...c, dataUrl };
       }),
@@ -109,30 +159,49 @@ export default function App() {
   };
 
   const handleStart = async () => {
-    if (!reference || competitors.length === 0) return;
+    const hasReference = hasProductInput(reference);
+    const hasCompetitor = competitors.some(hasProductInput);
+
+    if (!hasReference || !hasCompetitor) {
+      showError("请至少提供我的商品标题或主图，并至少提供一个竞品标题或主图");
+      return;
+    }
 
     setErrorMessage(null);
     setIsAnalyzing(true);
-    setProgress({ current: 0, total: competitors.length });
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
       const { refDataUrl, compsWithData } = await ensureDataUrls();
-      if (!refDataUrl) {
-        throw new Error("主图未就绪");
+      const referenceInput = {
+        dataUrl: refDataUrl,
+        title: reference.title.trim(),
+      };
+      const analyzableCompetitors = compsWithData.filter(hasProductInput);
+
+      if (!hasProductInput(referenceInput)) {
+        throw new Error("我的商品信息未就绪");
+      }
+      if (analyzableCompetitors.length === 0) {
+        throw new Error("竞品信息未就绪");
       }
 
+      setProgress({ current: 0, total: analyzableCompetitors.length });
       setResults(
-        compsWithData.map((c) => ({ id: c.id, status: "pending" as const })),
+        analyzableCompetitors.map((c) => ({
+          id: c.id,
+          status: "pending" as const,
+        })),
       );
 
       await classifyCompetitors(
-        refDataUrl,
-        compsWithData.map((c) => ({
+        referenceInput,
+        analyzableCompetitors.map((c) => ({
           id: c.id,
-          dataUrl: c.dataUrl!,
+          dataUrl: c.dataUrl,
+          title: c.title.trim(),
         })),
         (current, total, result) => {
           setProgress({ current, total });
@@ -168,14 +237,25 @@ export default function App() {
   };
 
   const handleRetry = async (id: string) => {
-    if (!reference) return;
+    if (!hasProductInput(reference)) return;
 
     setRetryingId(id);
     try {
       const { refDataUrl, compsWithData } = await ensureDataUrls();
       const comp = compsWithData.find((c) => c.id === id);
-      if (!refDataUrl || !comp?.dataUrl) {
-        throw new Error("图片数据未就绪");
+      const referenceInput = {
+        dataUrl: refDataUrl,
+        title: reference.title.trim(),
+      };
+      const competitorInput = comp
+        ? { dataUrl: comp.dataUrl, title: comp.title.trim() }
+        : null;
+
+      if (!hasProductInput(referenceInput) || !competitorInput) {
+        throw new Error("商品信息未就绪");
+      }
+      if (!hasProductInput(competitorInput)) {
+        throw new Error("竞品信息未就绪");
       }
 
       setResults((prev) =>
@@ -185,9 +265,9 @@ export default function App() {
       );
 
       const result = await classifySingleCompetitor(
-        refDataUrl,
+        referenceInput,
         id,
-        comp.dataUrl,
+        competitorInput,
       );
 
       setResults((prev) =>
@@ -203,7 +283,9 @@ export default function App() {
   };
 
   const canAnalyze =
-    reference !== null && competitors.length > 0 && !isAnalyzing;
+    hasProductInput(reference) &&
+    competitors.some(hasProductInput) &&
+    !isAnalyzing;
 
   return (
     <div className="min-h-screen">
@@ -213,7 +295,7 @@ export default function App() {
             图片竞筛
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            竞品主图智能筛选 — 从 BSR 竞品中识别同一产品类型
+            竞品智能筛选 — 优先识别外观结构相似的对标款
           </p>
         </div>
       </header>
@@ -231,8 +313,11 @@ export default function App() {
           disabled={isAnalyzing}
           onReferenceSelected={handleReferenceSelected}
           onReferenceRemove={handleReferenceRemove}
+          onReferenceTitleChange={handleReferenceTitleChange}
           onCompetitorsSelected={handleCompetitorsSelected}
           onCompetitorRemove={handleCompetitorRemove}
+          onCompetitorTitleChange={handleCompetitorTitleChange}
+          onCompetitorAdd={handleCompetitorAdd}
         />
 
         <AnalysisPanel
